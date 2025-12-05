@@ -18,7 +18,6 @@ echo "==> Installing required packages..."
 apt install -y \
   linux-image-current-sunxi64 \
   armbian-firmware-full \
-  network-manager \
   gstreamer1.0-tools \
   gstreamer1.0-plugins-base \
   gstreamer1.0-plugins-good \
