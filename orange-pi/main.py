@@ -1,14 +1,13 @@
 from pymavlink import mavutil
 import time
+import glob
+import os
+
+MATEK_FOLDER_PATH = "/dev/serial/by-id"
 
 # Baud rate of the UART between RunCam (OpenIPC) and the Matek FC.
 # Must match SERIALx_BAUD on the ArduPilot side.
 BAUD = 57600
-
-# Linux device for the Matek flight controller.
-# On OpenIPC this is usually a USB gadget or UART exposed as /dev/ttyS* or /dev/serial/by-id/*
-# Using by-id is good: stable across reboots.
-DEVICE = "/dev/serial/by-id/usb-ArduPilot_MatekH743_1F002D000D51333230363937-if00"
 
 # MAVLink system ID for this node.
 # 1 is the autopilot (reserved).
@@ -16,20 +15,32 @@ DEVICE = "/dev/serial/by-id/usb-ArduPilot_MatekH743_1F002D000D51333230363937-if0
 # Must be unique on the MAVLink network.
 SYSTEM_SOURCE = 2
 
+def connect_to_matek():
+    files = glob.glob(os.path.join(MATEK_FOLDER_PATH, "*"))
+    files.sort()
+
+    for filepath in files:
+        try:
+            return mavutil.mavlink_connection(
+                device=filepath,
+                baud=BAUD,
+
+                # Who we are (system identity).
+                # This identifies this script as a separate MAVLink system running on the UAV.
+                source_system=SYSTEM_SOURCE,
+
+                # What we are (component role).
+                # ONBOARD_COMPUTER (191) is correct for a payload / companion device
+                # running on the vehicle (RunCam + OpenIPC).
+                source_component=mavutil.mavlink.MAV_COMP_ID_ONBOARD_COMPUTER
+            )
+        except Exception as exception:
+            print(exception)
+
+    raise Exception("Matek not found.")
+
 def main():
-    connection = mavutil.mavlink_connection(
-        device=DEVICE,
-        baud=BAUD,
-
-        # Who we are (system identity).
-        # This identifies this script as a separate MAVLink system running on the UAV.
-        source_system=SYSTEM_SOURCE,
-
-        # What we are (component role).
-        # ONBOARD_COMPUTER (191) is correct for a payload / companion device
-        # running on the vehicle (RunCam + OpenIPC).
-        source_component=mavutil.mavlink.MAV_COMP_ID_ONBOARD_COMPUTER
-    )
+    connection = connect_to_matek()
 
     # Blocks until we see the FC heartbeat.
     # This confirms link is working
