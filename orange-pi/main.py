@@ -49,13 +49,13 @@ def _reload_majestic():
     print("Unable to signal Majestic; crop change may require manual restart.")
 
 
-def set_crop_in_config(crop: str, ensure_exists: bool = False) -> None:
-    """Update the crop entry under video0 inside the Majestic configuration."""
+"""Update the crop entry under video0 inside the Majestic configuration."""
+def set_crop_in_config(crop: str, ensure_exists: bool = False, config_path: str = MAJESTIC_CONFIG_PATH) -> None:
     try:
-        with open(MAJESTIC_CONFIG_PATH, "r", encoding="utf-8") as config_file:
+        with open(config_path, "r", encoding="utf-8") as config_file:
             lines = config_file.readlines()
     except FileNotFoundError:
-        print(f"Majestic config not found at {MAJESTIC_CONFIG_PATH}; skipping crop update.")
+        print(f"Majestic config not found at {config_path}; skipping crop update.")
         return
 
     in_video0 = False
@@ -91,7 +91,7 @@ def set_crop_in_config(crop: str, ensure_exists: bool = False) -> None:
             print("crop entry inside video0 not found; no changes written.")
             return
 
-    with open(MAJESTIC_CONFIG_PATH, "w", encoding="utf-8") as config_file:
+    with open(config_path, "w", encoding="utf-8") as config_file:
         config_file.writelines(lines)
 
     _reload_majestic()
