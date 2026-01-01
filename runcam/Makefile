@@ -10,8 +10,8 @@ TARGETS = zoom_control
 
 all: $(TARGETS)
 
-zoom_control: zoom_control.c
-	ZIG_GLOBAL_CACHE_DIR=$(ZIG_CACHE) ZIG_LOCAL_CACHE_DIR=$(ZIG_CACHE) $(ZIG) cc $(ZOOM_CFLAGS) $< -o $@
+zoom_control: zoom_control.c mavlink_heartbeat.c
+	ZIG_GLOBAL_CACHE_DIR=$(ZIG_CACHE) ZIG_LOCAL_CACHE_DIR=$(ZIG_CACHE) $(ZIG) cc $(ZOOM_CFLAGS) $^ -o $@
 
 clean:
 	$(RM) $(TARGETS)

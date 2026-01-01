@@ -15,6 +15,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "mavlink_proto.h"
+
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 static const char *const CROPS[] = {
@@ -29,15 +31,6 @@ static const char *const DEFAULT_MAJESTIC_CONFIG = "/etc/majestic.yaml";
 static const speed_t SERIAL_SPEED = B57600;
 static const uint8_t SYSTEM_ID = 2;
 static const uint8_t COMPONENT_ID = 191; /* MAV_COMP_ID_ONBOARD_COMPUTER */
-
-static const uint8_t MAVLINK_V2_STX = 0xFD;
-static const uint8_t MAVLINK_V1_STX = 0xFE;
-static const uint8_t MAVLINK_SIGNATURE_LEN = 13;
-
-enum {
-    MAVLINK_MSG_ID_HEARTBEAT = 0,
-    MAVLINK_MSG_ID_STATUSTEXT = 253,
-};
 
 struct line_buffer {
     char **lines;
@@ -264,15 +257,6 @@ static bool set_crop_in_config(const char *crop, bool ensure_exists) {
     return updated;
 }
 
-static uint16_t crc_accumulate_buffer(const uint8_t *buf, size_t len, uint16_t crc) {
-    for (size_t i = 0; i < len; ++i) {
-        uint8_t tmp = buf[i] ^ (uint8_t)(crc & 0xFF);
-        tmp ^= (tmp << 4);
-        crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
-    }
-    return crc;
-}
-
 static bool lookup_crc_extra(uint32_t msgid, uint8_t *extra) {
     switch (msgid) {
         case MAVLINK_MSG_ID_HEARTBEAT:
@@ -373,8 +357,8 @@ finalize: {
         memcpy(bytes_header, parser->header, count);
 
         uint16_t crc = 0xFFFF;
-        crc = crc_accumulate_buffer(bytes_header, count, crc);
-        crc = crc_accumulate_buffer(parser->payload, parser->payload_len, crc);
+        crc = mavlink_crc_accumulate_buffer(bytes_header, count, crc);
+        crc = mavlink_crc_accumulate_buffer(parser->payload, parser->payload_len, crc);
 
         if (parser->mavlink2) {
             msg->sysid = parser->header[4];
@@ -392,80 +376,12 @@ finalize: {
         if (!lookup_crc_extra(msg->msgid, &extra)) {
             return false;
         }
-        crc = crc_accumulate_buffer(&extra, 1, crc);
+        crc = mavlink_crc_accumulate_buffer(&extra, 1, crc);
         if (crc == parser->crc_received) {
             return true;
         }
         return false;
     }
-}
-
-static bool write_all(int fd, const void *data, size_t len) {
-    const uint8_t *ptr = data;
-    while (len > 0) {
-        ssize_t written = write(fd, ptr, len);
-        if (written < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            perror("write");
-            return false;
-        }
-        ptr += (size_t)written;
-        len -= (size_t)written;
-    }
-    return true;
-}
-
-static bool send_heartbeat(int fd, uint8_t seq, bool use_v2) {
-    uint8_t payload[9];
-    uint32_t custom_mode = 0;
-    memcpy(payload, &custom_mode, sizeof(custom_mode));
-    payload[4] = 18; /* MAV_TYPE_ONBOARD_CONTROLLER */
-    payload[5] = 8;  /* MAV_AUTOPILOT_INVALID */
-    payload[6] = 0;
-    payload[7] = 0;
-    payload[8] = 3;
-
-    uint8_t frame[32];
-    size_t offset = 0;
-    uint16_t crc = 0xFFFF;
-
-    if (use_v2) {
-        frame[offset++] = MAVLINK_V2_STX;
-        frame[offset++] = sizeof(payload);
-        frame[offset++] = 0;  /* incompat */
-        frame[offset++] = 0;  /* compat */
-        frame[offset++] = seq;
-        frame[offset++] = SYSTEM_ID;
-        frame[offset++] = COMPONENT_ID;
-        frame[offset++] = 0;
-        frame[offset++] = 0;
-        frame[offset++] = 0;
-        memcpy(&frame[offset], payload, sizeof(payload));
-        offset += sizeof(payload);
-
-        crc = crc_accumulate_buffer(&frame[1], 9, crc);
-    } else {
-        frame[offset++] = MAVLINK_V1_STX;
-        frame[offset++] = sizeof(payload);
-        frame[offset++] = seq;
-        frame[offset++] = SYSTEM_ID;
-        frame[offset++] = COMPONENT_ID;
-        frame[offset++] = MAVLINK_MSG_ID_HEARTBEAT;
-        memcpy(&frame[offset], payload, sizeof(payload));
-        offset += sizeof(payload);
-
-        crc = crc_accumulate_buffer(&frame[1], 5, crc);
-    }
-
-    crc = crc_accumulate_buffer(payload, sizeof(payload), crc);
-    uint8_t extra = 50;
-    crc = crc_accumulate_buffer(&extra, 1, crc);
-    frame[offset++] = (uint8_t)(crc & 0xFF);
-    frame[offset++] = (uint8_t)(crc >> 8);
-
-    return write_all(fd, frame, offset);
 }
 
 static bool configure_serial(int fd) {
@@ -580,13 +496,12 @@ static void event_loop(int fd) {
     uint8_t seq = 0;
     double last_heartbeat = 0.0;
     bool heartbeat_received = false;
-    bool prefer_mavlink2 = false;
 
     printf("waiting for heartbeat from autopilot...\n");
     while (!heartbeat_received) {
         double now = monotonic_seconds();
         if (now - last_heartbeat >= 1.0) {
-            send_heartbeat(fd, seq++, prefer_mavlink2);
+            mavlink_send_heartbeat(fd, seq++, SYSTEM_ID, COMPONENT_ID);
             last_heartbeat = now;
         }
         struct pollfd pfd = {
@@ -601,9 +516,6 @@ static void event_loop(int fd) {
                 for (ssize_t i = 0; i < read_len; ++i) {
                     struct mavlink_message msg;
                     if (parser_feed(&parser, buffer[i], &msg)) {
-                        if (msg.mavlink2) {
-                            prefer_mavlink2 = true;
-                        }
                         if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                             heartbeat_received = true;
                             break;
@@ -622,7 +534,7 @@ static void event_loop(int fd) {
     while (true) {
         double now = monotonic_seconds();
         if (now - last_heartbeat >= 1.0) {
-            send_heartbeat(fd, seq++, prefer_mavlink2);
+            mavlink_send_heartbeat(fd, seq++, SYSTEM_ID, COMPONENT_ID);
             last_heartbeat = now;
         }
         struct pollfd pfd = {.fd = fd, .events = POLLIN};
@@ -634,9 +546,6 @@ static void event_loop(int fd) {
                 for (ssize_t i = 0; i < read_len; ++i) {
                     struct mavlink_message msg;
                     if (parser_feed(&parser, buffer[i], &msg)) {
-                        if (msg.mavlink2) {
-                            prefer_mavlink2 = true;
-                        }
                         handle_message(&msg);
                     }
                 }
