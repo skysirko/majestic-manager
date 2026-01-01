@@ -19,9 +19,9 @@
 
 static const char *const CROPS[] = {
     "0x0x3840x2160",
-    "320x180x3520x1980",
     "640x360x3200x1800",
-    "960x540x2880x1620",
+    "1280x720x2560x1440",
+    "1600x820x2240x1340",
 };
 
 static const char *const MATEK_DEVICE = "/dev/ttyS2";
@@ -564,13 +564,12 @@ static void handle_message(const struct mavlink_message *msg) {
         *newline = '\0';
     }
 
-    printf("[STATUSTEXT severity=%u id=%u chunk=%u] %s\n", severity, text_id, chunk_seq, text);
-
     if (chunk_seq != 0) {
         return;
     }
 
     if (strcmp(text, "zoom_in") == 0 || strcmp(text, "zoom_out") == 0) {
+        printf("[STATUSTEXT severity=%u id=%u chunk=%u] %s\n", severity, text_id, chunk_seq, text);
         execute_command(text);
     }
 }
