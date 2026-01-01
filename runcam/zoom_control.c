@@ -290,6 +290,20 @@ static void execute_command(const char *command) {
         }
         return;
     }
+    if (strcmp(command, "day_mode") == 0) {
+        char *bitrate[] = {"curl", "-s", "http://localhost/api/v1/set?video1.bitrate={900}", NULL};
+        char *night_on[] = {"curl", "-s", "http://localhost/night/on", NULL};
+        run_command(bitrate);
+        run_command(night_on);
+        return;
+    }
+    if (strcmp(command, "night_mode") == 0) {
+        char *bitrate[] = {"curl", "-s", "http://localhost/api/v1/set?video1.bitrate={570}", NULL};
+        char *night_off[] = {"curl", "-s", "http://localhost/night/off", NULL};
+        run_command(bitrate);
+        run_command(night_off);
+        return;
+    }
 }
 
 static void handle_message(const struct mavlink_message *msg) {
@@ -325,7 +339,8 @@ static void handle_message(const struct mavlink_message *msg) {
         return;
     }
 
-    if (strcmp(text, "zoom_in") == 0 || strcmp(text, "zoom_out") == 0) {
+    if (strcmp(text, "zoom_in") == 0 || strcmp(text, "zoom_out") == 0 ||
+        strcmp(text, "day_mode") == 0 || strcmp(text, "night_mode") == 0) {
         printf("[STATUSTEXT severity=%u id=%u chunk=%u] %s\n", severity, text_id, chunk_seq, text);
         execute_command(text);
     }
