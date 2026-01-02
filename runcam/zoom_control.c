@@ -290,23 +290,23 @@ static void execute_command(const char *command) {
         }
         return;
     }
-    if (strcmp(command, "day_mode") == 0) {
+    if (strcmp(command, "night_mode") == 0) {
         char *bitrate[] = {"curl", "-s", "http://localhost/api/v1/set?video1.bitrate={900}", NULL};
         char *night_on[] = {"curl", "-s", "http://localhost/night/on", NULL};
         int set_status = run_command(bitrate);
         int night_status = run_command(night_on);
         if (set_status == 0 && night_status == 0) {
-            printf("day_mode curl commands succeeded\n");
+            printf("night_mode curl commands succeeded\n");
         }
         return;
     }
-    if (strcmp(command, "night_mode") == 0) {
+    if (strcmp(command, "day_mode") == 0) {
         char *bitrate[] = {"curl", "-s", "http://localhost/api/v1/set?video1.bitrate={570}", NULL};
         char *night_off[] = {"curl", "-s", "http://localhost/night/off", NULL};
         int set_status = run_command(bitrate);
         int night_status = run_command(night_off);
         if (set_status == 0 && night_status == 0) {
-            printf("night_mode curl commands succeeded\n");
+            printf("day_mode curl commands succeeded\n");
         }
         return;
     }
