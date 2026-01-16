@@ -2,4 +2,4 @@
 .venv
 runcam/zig-cache
 runcam/zig-macos-aarch64-0.13.0
-runcam/majetic_manager
+runcam/majestic_manager

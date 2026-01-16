@@ -1,6 +1,6 @@
-## RunCam majetic manager build notes
+## RunCam majestic manager build notes
 
-The RunCam unit runs OpenIPC (Buildroot) with no package manager or compiler, so we have to cross‑compile on the laptop. We ship the `majetic_manager.c` source in this directory and build it for ARM using Zig’s self-contained toolchain.
+The RunCam unit runs OpenIPC (Buildroot) with no package manager or compiler, so we have to cross‑compile on the laptop. We ship the `majestic_manager.c` source in this directory and build it for ARM using Zig’s self-contained toolchain.
 
 ### Why is `zig.tar.xz` in the repo?
 
@@ -20,7 +20,7 @@ cd runcam
 make
 ```
 
-This uses `./zig-macos-aarch64-0.13.0/zig` to build `majetic_manager`. If you place Zig somewhere else, run:
+This uses `./zig-macos-aarch64-0.13.0/zig` to build `majestic_manager`. If you place Zig somewhere else, run:
 
 ```
 cd runcam
