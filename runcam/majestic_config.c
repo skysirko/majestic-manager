@@ -7,7 +7,6 @@
 #include <string.h>
 
 struct majestic_config_data g_majestic_config = {0};
-static char *g_config_path = NULL;
 
 static void config_store_reset(struct majestic_config_data *store) {
     for (size_t i = 0; i < store->count; ++i) {
@@ -78,12 +77,7 @@ static void config_store_refresh_metadata(struct majestic_config_data *store) {
 }
 
 static bool config_store_save(const struct majestic_config_data *store) {
-    if (!g_config_path) {
-        fprintf(stderr, "Majestic config path is not set; cannot save.\n");
-        return false;
-    }
-
-    FILE *out = fopen(g_config_path, "w");
+    FILE *out = fopen(MAJESTIC_DEFAULT_CONFIG_PATH, "w");
     if (!out) {
         perror("fopen");
         return false;
@@ -95,15 +89,10 @@ static bool config_store_save(const struct majestic_config_data *store) {
     return true;
 }
 
-static bool config_store_load(void) {
-    if (!g_config_path) {
-        fprintf(stderr, "Majestic config path is not set; cannot load.\n");
-        return false;
-    }
-
-    FILE *file = fopen(g_config_path, "r");
+bool majestic_config_init(void) {
+    FILE *file = fopen(MAJESTIC_DEFAULT_CONFIG_PATH, "r");
     if (!file) {
-        fprintf(stderr, "Majestic config not found at %s; skipping crop update.\n", g_config_path);
+        fprintf(stderr, "Majestic config not found at %s; skipping crop update.\n", MAJESTIC_DEFAULT_CONFIG_PATH);
         return false;
     }
 
@@ -128,21 +117,8 @@ static bool config_store_load(void) {
     return true;
 }
 
-bool majestic_config_init(void) {
-    char *path_copy = strdup(MAJESTIC_DEFAULT_CONFIG_PATH);
-    if (!path_copy) {
-        return false;
-    }
-    free(g_config_path);
-    g_config_path = path_copy;
-
-    return config_store_load();
-}
-
 void majestic_config_free(void) {
     config_store_reset(&g_majestic_config);
-    free(g_config_path);
-    g_config_path = NULL;
 }
 
 bool majestic_config_set_crop(const char *crop) {
