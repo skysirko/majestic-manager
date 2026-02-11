@@ -1,19 +1,23 @@
 #!/bin/sh
 
-# chmod +x /etc/init.d/S99wifi
+chmod +x /etc/init.d/S99wifi
 
 WIFACE="wlan0"
 WPA_CONF="/etc/wpa_supplicant.conf"
 PIDFILE="/var/run/wpa_supplicant.${WIFACE}.pid"
 LOGFILE="/tmp/wpa_supplicant.${WIFACE}.log"
 
-# Static network settings
+# Static network settings (wlan0)
 STATIC_IP="192.168.1.221/24"
 GATEWAY="192.168.1.1"
 DNS="192.168.1.1"
 
+# Ethernet interface (same subnet). We'll disable it if cable is unplugged.
+ETH_IFACE="eth0"
+ETH_CARRIER_PATH="/sys/class/net/${ETH_IFACE}/carrier"
+
 wait_ready() {
-    # Wait up to 30s for interface to exist
+    # Wait up to 30s for wlan0 to exist
     i=0
     while [ $i -lt 30 ]; do
         ip link show "${WIFACE}" >/dev/null 2>&1 && break
@@ -27,7 +31,7 @@ wait_ready() {
     while [ $j -lt 30 ]; do
         ip link set "${WIFACE}" up >/dev/null 2>&1 || true
 
-        # Some builds have /sys/class/net/wlan0/phy80211, others don't.
+        # Some builds have phy80211, some don't; check common sysfs hooks.
         if [ -d "/sys/class/net/${WIFACE}/phy80211" ]; then
             return 0
         fi
@@ -41,12 +45,30 @@ wait_ready() {
     return 0
 }
 
+maybe_disable_eth0_if_unplugged() {
+    if [ -e "${ETH_CARRIER_PATH}" ]; then
+        CARRIER="$(cat "${ETH_CARRIER_PATH}" 2>/dev/null)"
+        if [ "${CARRIER}" = "0" ]; then
+            echo "[wifi] ${ETH_IFACE} cable unplugged -> disabling ${ETH_IFACE} (avoid same-subnet routing/ARP issues)"
+            ip link set "${ETH_IFACE}" down 2>/dev/null || true
+        else
+            echo "[wifi] ${ETH_IFACE} cable present -> leaving ${ETH_IFACE} up"
+        fi
+    else
+        # If carrier file is missing, do nothing (some kernels/drivers).
+        true
+    fi
+}
+
 start() {
     echo "[wifi] waiting for ${WIFACE} readiness..."
     if ! wait_ready; then
         echo "[wifi] ${WIFACE} not ready; abort"
         return 1
     fi
+
+    # Critical fix for eth0+wlan0 in same subnet:
+    maybe_disable_eth0_if_unplugged
 
     echo "[wifi] bringing up ${WIFACE}"
     ip link set "${WIFACE}" up
