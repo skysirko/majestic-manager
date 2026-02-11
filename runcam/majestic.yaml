@@ -1,0 +1,95 @@
+image:
+  flip: false
+  mirror: false
+  rotate: 0
+  contrast: 50
+  hue: 50
+  saturation: 50
+  luminance: 50
+fpv:
+  enabled: true
+  noiseLevel: 0
+  refPred: true
+  refEnhance: 9
+  intraQp: false
+system:
+  webPort: 80
+  httpsPort: 443
+  logLevel: debug
+isp:
+  antiFlicker: disabled
+  sensorConfig: /etc/sensors/imx415.bin
+  exposure: 5
+  iqServer: false
+  wdr: 80
+video0:
+  enabled: true
+  input: sensor
+  codec: h265
+  fps: 30
+  bitrate: 14500
+  rcMode: cbr
+  gopSize: 1
+  size: 3840x2160
+  profile: high
+  sliceUnits: 0
+  qpDelta: 0
+video1:
+  crop: 0x0x1920x1080
+  enabled: true
+  input: sensor
+  codec: h265
+  fps: 20
+  bitrate: 670
+  rcMode: cbr
+  gopSize: 1
+  size: 1920x1080
+  profile: high
+  sliceUnits: 0
+  qpDelta: 0
+jpeg:
+  enabled: false
+  qfactor: 50
+  fps: 5
+osd:
+  enabled: false
+  font: /usr/share/fonts/truetype/UbuntuMono-Regular.ttf
+  template: '%d.%m.%Y %H:%M:%S'
+  posX: 16
+  posY: 16
+audio:
+  enabled: true
+  volume: 30
+  srate: 8000
+  codec: opus
+  outputEnabled: false
+  outputVolume: 30
+rtsp:
+  enabled: true
+  port: 554
+nightMode:
+  colorToGray: false
+  irCutSingleInvert: false
+  lightMonitor: false
+  lightSensorInvert: false
+motionDetect:
+  enabled: false
+  visualize: false
+  debug: false
+records:
+  enabled: true
+  path: /mnt/mmcblk0p1/%F
+  split: 1
+  maxUsage: 95
+  notime: true
+  substream: false
+outgoing:
+  enabled: false
+  server: udp://192.168.0.89:5600
+  naluSize: 1400
+  wfb: false
+watchdog:
+  enabled: true
+  timeout: 300
+hls:
+  enabled: false
