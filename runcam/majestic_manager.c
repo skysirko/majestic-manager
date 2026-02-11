@@ -19,10 +19,10 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 static const char *const CROPS[] = {
-    "0x0x3840x2160",
-    "640x360x3200x1800",
-    "1280x720x2560x1440",
-    "1600x820x2240x1340",
+    "0x0x1920x1080",
+    "480x270x960x540",
+    "720x405x480x270",
+    "840x472x240x135",
 };
 
 static const char *const MATEK_DEVICE = "/dev/ttyS2";
@@ -129,7 +129,7 @@ static bool set_crop_in_config(const char *crop, bool ensure_exists) {
     free(line);
     fclose(file);
 
-    bool in_video0 = false;
+    bool in_video1 = false;
     size_t section_indent = 0;
     ssize_t insert_index = -1;
     bool updated = false;
@@ -143,18 +143,18 @@ static bool set_crop_in_config(const char *crop, bool ensure_exists) {
         }
         const char *trimmed = current + indent;
 
-        if (strncmp(trimmed, "video0:", 7) == 0) {
-            in_video0 = true;
+        if (strncmp(trimmed, "video1:", 7) == 0) {
+            in_video1 = true;
             section_indent = indent;
             insert_index = (ssize_t)i + 1;
             continue;
         }
 
-        if (in_video0 && indent <= section_indent && trimmed[0] != '\0') {
+        if (in_video1 && indent <= section_indent && trimmed[0] != '\0') {
             break;
         }
 
-        if (in_video0 && strncmp(trimmed, "crop:", 5) == 0) {
+        if (in_video1 && strncmp(trimmed, "crop:", 5) == 0) {
             char *newline = strchr(current, '\n');
             size_t new_len = indent + strlen("crop: ") + strlen(crop) + 2;
             char *replacement = malloc(new_len);
@@ -203,7 +203,7 @@ static bool set_crop_in_config(const char *crop, bool ensure_exists) {
             buffer.count += 1;
             updated = true;
         } else {
-            fprintf(stderr, "crop entry inside video0 not found; no changes written.\n");
+            fprintf(stderr, "crop entry inside video1 not found; no changes written.\n");
         }
     }
 
