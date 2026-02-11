@@ -14,6 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "majestic_config.h"
 #include "mavlink.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -31,13 +32,6 @@ static const speed_t SERIAL_SPEED = B57600;
 static const uint8_t SYSTEM_ID = 2;
 static const uint8_t COMPONENT_ID = 191; /* MAV_COMP_ID_ONBOARD_COMPUTER */
 
-struct line_buffer {
-    char **lines;
-    size_t count;
-    size_t capacity;
-};
-
-static const char *config_path;
 static size_t crop_index = 0;
 
 static double monotonic_seconds(void) {
@@ -46,32 +40,7 @@ static double monotonic_seconds(void) {
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
-static void line_buffer_free(struct line_buffer *buffer) {
-    for (size_t i = 0; i < buffer->count; ++i) {
-        free(buffer->lines[i]);
-    }
-    free(buffer->lines);
-    buffer->lines = NULL;
-    buffer->count = buffer->capacity = 0;
-}
-
-static bool line_buffer_push(struct line_buffer *buffer, const char *line, size_t len) {
-    if (buffer->count == buffer->capacity) {
-        size_t new_capacity = buffer->capacity ? buffer->capacity * 2 : 32;
-        char **new_lines = realloc(buffer->lines, new_capacity * sizeof(char *));
-        if (!new_lines) {
-            return false;
-        }
-        buffer->lines = new_lines;
-        buffer->capacity = new_capacity;
-    }
-    buffer->lines[buffer->count] = strndup(line, len);
-    if (!buffer->lines[buffer->count]) {
-        return false;
-    }
-    buffer->count += 1;
-    return true;
-}
+/* majestic_config module manages config storage */
 
 static int run_command(char *const argv[]) {
     pid_t pid = fork();
@@ -107,122 +76,11 @@ static void reload_majestic(void) {
 }
 
 static bool set_crop_in_config(const char *crop, bool ensure_exists) {
-    FILE *file = fopen(config_path, "r");
-    if (!file) {
-        fprintf(stderr, "Majestic config not found at %s; skipping crop update.\n", config_path);
+    if (!majestic_config_set_crop(crop, ensure_exists)) {
         return false;
     }
-
-    struct line_buffer buffer = {0};
-    char *line = NULL;
-    size_t line_cap = 0;
-    ssize_t line_len;
-    while ((line_len = getline(&line, &line_cap, file)) != -1) {
-        if (!line_buffer_push(&buffer, line, (size_t)line_len)) {
-            fprintf(stderr, "Out of memory while reading config.\n");
-            free(line);
-            fclose(file);
-            line_buffer_free(&buffer);
-            return false;
-        }
-    }
-    free(line);
-    fclose(file);
-
-    bool in_video1 = false;
-    size_t section_indent = 0;
-    ssize_t insert_index = -1;
-    bool updated = false;
-
-    for (size_t i = 0; i < buffer.count; ++i) {
-        char *current = buffer.lines[i];
-        size_t len = strlen(current);
-        size_t indent = 0;
-        while (indent < len && (current[indent] == ' ' || current[indent] == '\t')) {
-            indent++;
-        }
-        const char *trimmed = current + indent;
-
-        if (strncmp(trimmed, "video1:", 7) == 0) {
-            in_video1 = true;
-            section_indent = indent;
-            insert_index = (ssize_t)i + 1;
-            continue;
-        }
-
-        if (in_video1 && indent <= section_indent && trimmed[0] != '\0') {
-            break;
-        }
-
-        if (in_video1 && strncmp(trimmed, "crop:", 5) == 0) {
-            char *newline = strchr(current, '\n');
-            size_t new_len = indent + strlen("crop: ") + strlen(crop) + 2;
-            char *replacement = malloc(new_len);
-            if (!replacement) {
-                line_buffer_free(&buffer);
-                return false;
-            }
-            if (newline) {
-                *newline = '\0';
-            }
-            snprintf(replacement, new_len, "%.*s%s%s\n", (int)indent, current, "crop: ", crop);
-            free(buffer.lines[i]);
-            buffer.lines[i] = replacement;
-            updated = true;
-            break;
-        }
-    }
-
-    if (!updated) {
-        if (ensure_exists && insert_index >= 0) {
-            size_t indent_len = section_indent + 2;
-            char *insert_line = malloc(indent_len + strlen("crop: ") + strlen(crop) + 2);
-            if (!insert_line) {
-                line_buffer_free(&buffer);
-                return false;
-            }
-            memset(insert_line, ' ', indent_len);
-            insert_line[indent_len] = '\0';
-            snprintf(insert_line + indent_len, strlen("crop: ") + strlen(crop) + 2, "crop: %s\n", crop);
-
-            if (buffer.count == buffer.capacity) {
-                size_t new_capacity = buffer.capacity ? buffer.capacity * 2 : 32;
-                char **new_lines = realloc(buffer.lines, new_capacity * sizeof(char *));
-                if (!new_lines) {
-                    free(insert_line);
-                    line_buffer_free(&buffer);
-                    return false;
-                }
-                buffer.lines = new_lines;
-                buffer.capacity = new_capacity;
-            }
-            size_t move_count = buffer.count - (size_t)insert_index;
-            memmove(&buffer.lines[insert_index + 1], &buffer.lines[insert_index],
-                    move_count * sizeof(char *));
-            buffer.lines[insert_index] = insert_line;
-            buffer.count += 1;
-            updated = true;
-        } else {
-            fprintf(stderr, "crop entry inside video1 not found; no changes written.\n");
-        }
-    }
-
-    if (updated) {
-        FILE *out = fopen(config_path, "w");
-        if (!out) {
-            perror("fopen");
-            line_buffer_free(&buffer);
-            return false;
-        }
-        for (size_t i = 0; i < buffer.count; ++i) {
-            fputs(buffer.lines[i], out);
-        }
-        fclose(out);
-        reload_majestic();
-    }
-
-    line_buffer_free(&buffer);
-    return updated;
+    reload_majestic();
+    return true;
 }
 
 static bool configure_serial(int fd) {
@@ -399,13 +257,19 @@ static void event_loop(int fd) {
 
 int main(void) {
     const char *env_path = getenv("MAJESTIC_CONFIG_PATH");
-    config_path = env_path ? env_path : DEFAULT_MAJESTIC_CONFIG;
+    const char *config_path = env_path ? env_path : DEFAULT_MAJESTIC_CONFIG;
+
+    if (!majestic_config_init(config_path)) {
+        return 1;
+    }
 
     int fd = connect_to_matek();
     if (fd < 0) {
+        majestic_config_free();
         return 1;
     }
     event_loop(fd);
     close(fd);
+    majestic_config_free();
     return 0;
 }
