@@ -74,8 +74,8 @@ static void reload_majestic(void) {
     fprintf(stderr, "Unable to signal Majestic; crop change may require manual restart.\n");
 }
 
-static bool set_crop_in_config(const char *crop, bool ensure_exists) {
-    if (!majestic_config_set_crop(crop, ensure_exists)) {
+static bool set_crop_in_config(const char *crop) {
+    if (!majestic_config_set_crop(crop)) {
         return false;
     }
     reload_majestic();
@@ -129,21 +129,21 @@ static void apply_crop_index(void) {
         crop_index = ARRAY_SIZE(CROPS) - 1;
     }
     const char *crop = CROPS[crop_index];
-    set_crop_in_config(crop, crop_index == 0);
+    set_crop_in_config(crop);
 }
 
 static void execute_command(const char *command) {
     if (strcmp(command, "zoom_in") == 0) {
         if (crop_index + 1 < ARRAY_SIZE(CROPS)) {
             crop_index++;
-            set_crop_in_config(CROPS[crop_index], false);
+            set_crop_in_config(CROPS[crop_index]);
         }
         return;
     }
     if (strcmp(command, "zoom_out") == 0) {
         if (crop_index > 0) {
             crop_index--;
-            set_crop_in_config(CROPS[crop_index], false);
+            set_crop_in_config(CROPS[crop_index]);
         }
         return;
     }

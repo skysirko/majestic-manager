@@ -7,8 +7,6 @@
 #include <string.h>
 
 struct majestic_config_data g_majestic_config = {0};
-const char *const MAJESTIC_DEFAULT_CONFIG_PATH = "runcam/majestic.yaml";
-
 static char *g_config_path = NULL;
 
 static void config_store_reset(struct majestic_config_data *store) {
@@ -147,7 +145,7 @@ void majestic_config_free(void) {
     g_config_path = NULL;
 }
 
-bool majestic_config_set_crop(const char *crop, bool ensure_exists) {
+bool majestic_config_set_crop(const char *crop) {
     if (g_majestic_config.count == 0) {
         fprintf(stderr, "Majestic config not loaded; skipping crop update.\n");
         return false;
@@ -174,7 +172,7 @@ bool majestic_config_set_crop(const char *crop, bool ensure_exists) {
         free(g_majestic_config.rows[g_majestic_config.crop_row]);
         g_majestic_config.rows[g_majestic_config.crop_row] = replacement;
         updated = true;
-    } else if (ensure_exists && g_majestic_config.insert_row >= 0) {
+    } else if (g_majestic_config.insert_row >= 0) {
         size_t indent_len = g_majestic_config.section_indent + 2;
         size_t new_len = indent_len + strlen("crop: ") + strlen(crop) + 2;
         char *insert_line = malloc(new_len);
@@ -201,18 +199,13 @@ bool majestic_config_set_crop(const char *crop, bool ensure_exists) {
         g_majestic_config.rows[insert_pos] = insert_line;
         g_majestic_config.count += 1;
         updated = true;
-    } else if (!ensure_exists) {
-        fprintf(stderr, "crop entry inside video1 not found; no changes written.\n");
     } else {
-        fprintf(stderr, "video1 section not found; crop entry cannot be created.\n");
-    }
-
-    if (!updated) {
+        fprintf(stderr, "video1 crop entry not found; no changes written.\n");
         return false;
     }
 
     if (!config_store_save(&g_majestic_config)) {
         return false;
     }
-    return true;
+    return updated;
 }
