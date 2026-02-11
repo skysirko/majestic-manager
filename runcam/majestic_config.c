@@ -7,6 +7,7 @@
 #include <string.h>
 
 struct majestic_config_data g_majestic_config = {0};
+const char *const MAJESTIC_DEFAULT_CONFIG_PATH = "runcam/majestic.yaml";
 
 static char *g_config_path = NULL;
 
@@ -129,12 +130,8 @@ static bool config_store_load(void) {
     return true;
 }
 
-bool majestic_config_init(const char *path) {
-    if (!path) {
-        return false;
-    }
-
-    char *path_copy = strdup(path);
+bool majestic_config_init(void) {
+    char *path_copy = strdup(MAJESTIC_DEFAULT_CONFIG_PATH);
     if (!path_copy) {
         return false;
     }

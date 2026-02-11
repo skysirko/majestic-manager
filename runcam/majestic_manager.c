@@ -27,7 +27,6 @@ static const char *const CROPS[] = {
 };
 
 static const char *const MATEK_DEVICE = "/dev/ttyS2";
-static const char *const DEFAULT_MAJESTIC_CONFIG = "/etc/majestic.yaml";
 static const speed_t SERIAL_SPEED = B57600;
 static const uint8_t SYSTEM_ID = 2;
 static const uint8_t COMPONENT_ID = 191; /* MAV_COMP_ID_ONBOARD_COMPUTER */
@@ -256,10 +255,7 @@ static void event_loop(int fd) {
 }
 
 int main(void) {
-    const char *env_path = getenv("MAJESTIC_CONFIG_PATH");
-    const char *config_path = env_path ? env_path : DEFAULT_MAJESTIC_CONFIG;
-
-    if (!majestic_config_init(config_path)) {
+    if (!majestic_config_init()) {
         return 1;
     }
 
