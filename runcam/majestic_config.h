@@ -4,13 +4,14 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+struct majestic_config_entry {
+    char *section;
+    char *field;
+    char *value;
+};
+
 struct majestic_config_data {
-    char **rows;
-    size_t count;
-    size_t capacity;
-    ssize_t crop_row;
-    ssize_t insert_row;
-    size_t section_indent;
+    struct majestic_config_entry *rows;
 };
 
 extern struct majestic_config_data g_majestic_config;
