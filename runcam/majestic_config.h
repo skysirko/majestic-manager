@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#define MAJESTIC_CONFIG_FILE "runcam/majestic.yaml"
+
 struct majestic_config_entry {
     char *section;
     char *field;
@@ -15,7 +17,6 @@ struct majestic_config_data {
 };
 
 extern struct majestic_config_data g_majestic_config;
-#define MAJESTIC_DEFAULT_CONFIG_PATH "runcam/majestic.yaml"
 
 bool majestic_config_init(void);
 void majestic_config_free(void);

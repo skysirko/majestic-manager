@@ -8,7 +8,7 @@
 struct majestic_config_data g_majestic_config = {0};
 
 bool majestic_config_init(void) {
-    FILE *fp = fopen(MAJESTIC_DEFAULT_CONFIG_PATH, "r");
+    FILE *fp = fopen(MAJESTIC_CONFIG_FILE, "r");
     if (!fp) {
         perror("fopen");
         return false;
