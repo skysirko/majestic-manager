@@ -17,7 +17,10 @@ bool majestic_config_init(void) {
     ssize_t linelen = 0;
     size_t linecap = 0;
 
+    // read until EOF
     while ((linelen = getline(&line, &linecap, fp)) != -1) {
+
+        // removing \n and \r
         while (linelen > 0) {
             char tail = line[linelen - 1];
             if (tail != '\n' && tail != '\r') {
@@ -33,10 +36,10 @@ bool majestic_config_init(void) {
             return false;
         }
 
-        // section never starts with space
+        // section
         if (line[0] != ' ') {
 
-        } else { // section field
+        } else { // field inside section
 
         }
     }
