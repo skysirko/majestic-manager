@@ -28,7 +28,9 @@ bool majestic_config_init(void) {
 
         if (linelen == 0) {
             fprintf(stderr, "Empty lines not allowed\n");
-            break;
+            free(line);
+            fclose(fp);
+            return false;
         }
 
         // section never starts with space
