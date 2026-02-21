@@ -4,7 +4,70 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct majestic_config_data g_majestic_config = {0};
+static struct majestic_section *create_section(struct majestic_config *config, const char *name) {
+    if (!ensure_section_capacity(config)) {
+        return NULL;
+    }
+    struct majestic_section *section = &config->sections[config->section_count];
+    memset(section, 0, sizeof(*section));
+    section->section = strdup(name);
+    if (!section->section) {
+        perror("strdup");
+        return NULL;
+    }
+    config->section_count++;
+    return section;
+}
+
+static bool add_entry(struct majestic_section *section, const char *field, const char *value) {
+    if (!ensure_entry_capacity(section)) {
+        return false;
+    }
+    struct majectic_section_entry *entry = &section->entries[section->entry_count];
+    entry->field = strdup(field);
+    if (!entry->field) {
+        perror("strdup");
+        return false;
+    }
+    entry->value = strdup(value);
+    if (!entry->value) {
+        perror("strdup");
+        free(entry->field);
+        entry->field = NULL;
+        return false;
+    }
+    section->entry_count++;
+    return true;
+}
+
+static bool write_config_file(void) {
+    FILE *fp = fopen(MAJESTIC_CONFIG_FILE, "w");
+    if (!fp) {
+        perror("fopen");
+        return false;
+    }
+    for (size_t i = 0; i < g_majestic_config.section_count; i++) {
+        struct majestic_section *section = &g_majestic_config.sections[i];
+        if (fprintf(fp, "%s:\n", section->section) < 0) {
+            perror("fprintf");
+            fclose(fp);
+            return false;
+        }
+        for (size_t j = 0; j < section->entry_count; j++) {
+            struct majectic_section_entry *entry = &section->entries[j];
+            if (fprintf(fp, "  %s: %s\n", entry->field, entry->value ? entry->value : "") < 0) {
+                perror("fprintf");
+                fclose(fp);
+                return false;
+            }
+        }
+    }
+    if (fclose(fp) != 0) {
+        perror("fclose");
+        return false;
+    }
+    return true;
+}
 
 bool majestic_config_init(void) {
     FILE *fp = fopen(MAJESTIC_CONFIG_FILE, "r");
