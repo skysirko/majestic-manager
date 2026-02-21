@@ -19,5 +19,4 @@ struct majestic_config_data {
 extern struct majestic_config_data g_majestic_config;
 
 bool majestic_config_init(void);
-void majestic_config_free(void);
 bool majestic_config_set_crop(const char *crop);
