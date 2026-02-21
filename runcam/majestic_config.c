@@ -57,8 +57,7 @@ bool majestic_config_set_crop(const char *crop) {
     // searching video1 section
     struct majestic_section *video1 = NULL;
     for (size_t i = 0; i < g_majestic_config.section_count; i++) {
-        if (g_majestic_config.sections[i].section &&
-            strcmp(g_majestic_config.sections[i].section, "video1") == 0) {
+        if (strcmp(g_majestic_config.sections[i].section, "video1") == 0) {
             video1 = &g_majestic_config.sections[i];
             break;
         }
@@ -71,7 +70,7 @@ bool majestic_config_set_crop(const char *crop) {
     // searching crop entry
     struct majectic_section_entry *crop_entry = NULL;
     for (size_t i = 0; i < video1->entry_count; i++) {
-        if (video1->entries[i].field && strcmp(video1->entries[i].field, "crop") == 0) {
+        if (strcmp(video1->entries[i].field, "crop") == 0) {
             crop_entry = &video1->entries[i];
             break;
         }
