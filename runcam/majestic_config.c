@@ -123,30 +123,36 @@ bool majestic_config_init(void) {
     }
 
     char *line = NULL;
-    ssize_t linelen = 0;
-    size_t linecap = 0;
+    ssize_t line_len = 0;
+    size_t line_cap = 0;
+    struct majestic_section *current_section = NULL;
 
     // read until EOF
-    while ((linelen = getline(&line, &linecap, fp)) != -1) {
+    while ((line_len = getline(&line, &line_cap, fp)) != -1) {
 
         // removing \n and \r
-        while (linelen > 0) {
-            char tail = line[linelen - 1];
+        while (line_len > 0) {
+            char tail = line[line_len - 1];
             if (tail != '\n' && tail != '\r') {
                 break;
             }
-            line[--linelen] = '\0';
+            line[--line_len] = '\0';
         }
 
-        if (linelen == 0) {
+        if (line_len == 0) {
             fprintf(stderr, "Empty lines not allowed\n");
-            free(line);
-            fclose(fp);
-            return false;
+            goto error;
         }
 
-        // section
-        if (line[0] != ' ') {
+        size_t indent = 0;
+        while (indent < (size_t)line_len && line[indent] == ' ') {
+            indent++;
+        }
+        char *content = line + indent;
+        if (*content == '\0') {
+            fprintf(stderr, "lines with spaces only not allowed\n");
+            goto error;
+        }
 
         } else { // field inside section
 
