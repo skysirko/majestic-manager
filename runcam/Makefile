@@ -18,6 +18,7 @@ LIBYAML_SRCS = \
 
 MAJESTIC_SOURCES = \
 	majestic_manager.c \
+	majestic_process.c \
 	matek_mavlink.c \
 	majestic_config.c \
 	$(LIBYAML_SRCS)

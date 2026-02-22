@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 
 #include "matek_mavlink.h"
 #include "majestic_config.h"
+#include "majestic_process.h"
 
 static const char *const CROPS[] = {
     "0x0x1920x1080",
@@ -26,6 +28,11 @@ static int apply_crop_index(size_t new_index) {
 
     if (majestic_config_set_crop(DEFAULT_MAJESTIC_CONFIG, CROPS[new_index]) != 0) {
         fprintf(stderr, "Failed to update Majestic crop to %s\n", CROPS[new_index]);
+        return -1;
+    }
+
+    if (reload_majestic_process() != 0) {
+        fprintf(stderr, "Failed to reload Majestic after updating crop.\n");
         return -1;
     }
 
