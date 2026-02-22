@@ -19,10 +19,15 @@ static const char *const CROPS[] = {
 
 static const char *const DEFAULT_MAJESTIC_CONFIG = "/etc/majestic.yaml";
 static size_t current_crop_index = 0;
-static const size_t CROP_COUNT = sizeof(CROPS) / sizeof(CROPS[0]);
+static const size_t CROP_INDEX_MIN = 0;
+static const size_t CROP_INDEX_MAX = sizeof(CROPS) / sizeof(CROPS[0]) - 1;
+static const struct timespec RECONNECT_DELAY = {
+    .tv_sec = 1,
+    .tv_nsec = 0
+};
 
 static int apply_crop_index(size_t new_index) {
-    if (new_index >= CROP_COUNT) {
+    if (new_index > CROP_INDEX_MAX) {
         return -1;
     }
 
@@ -40,30 +45,19 @@ static int apply_crop_index(size_t new_index) {
     return 0;
 }
 
-static void handle_zoom_command(const char *command) {
-    if (strcmp(command, "zoom_in") == 0) {
-        if (current_crop_index + 1 < CROP_COUNT) {
+static void handle_statustext(const char *text) {
+    if (strcmp(text, "zoom_in") == 0) {
+        if (current_crop_index < CROP_INDEX_MAX) {
             (void)apply_crop_index(current_crop_index + 1);
         }
         return;
     }
 
-    if (strcmp(command, "zoom_out") == 0) {
-        if (current_crop_index > 0) {
+    if (strcmp(text, "zoom_out") == 0) {
+        if (current_crop_index > CROP_INDEX_MIN) {
             (void)apply_crop_index(current_crop_index - 1);
         }
     }
-}
-
-static void handle_statustext(const matek_statustext_t *message) {
-    fprintf(stderr, "STATUSTEXT (severity=%u id=%u chunk=%u): %s\n",
-        message->severity,
-        message->id,
-        message->chunk_seq,
-        message->text
-    );
-
-    handle_zoom_command(message->text);
 }
 
 static uint64_t monotonic_now_ms(void) {
@@ -76,7 +70,7 @@ static uint64_t monotonic_now_ms(void) {
     return (uint64_t)now.tv_sec * 1000ULL + (uint64_t)now.tv_nsec / 1000000ULL;
 }
 
-static int event_loop(int fd) {
+static void event_loop(int fd) {
     const uint64_t interval_ms = 1000;
     uint64_t next_emit_ms = 0;
 
@@ -85,21 +79,20 @@ static int event_loop(int fd) {
 
         if (next_emit_ms == 0 || now_ms >= next_emit_ms) {
             if (send_heartbeat(fd) != 0) {
-                return -1;
+                return;
             }
-
             next_emit_ms = now_ms + interval_ms;
         }
 
-        matek_statustext_t status_message;
-        const int statustext_result = receive_statustext(fd, &status_message);
-
+        matek_statustext_t msg;
+        const int statustext_result = receive_statustext(fd, &msg);
         if (statustext_result < 0) {
-            return -1;
+            return;
         }
 
         if (statustext_result > 0) {
-            handle_statustext(&status_message);
+            fprintf(stderr, "STATUSTEXT (severity=%u id=%u chunk=%u): %s\n", msg.severity, msg.id, msg.chunk_seq, msg.text);
+            handle_statustext(msg.text);
         }
 
         const struct timespec sleep_time = {
@@ -109,8 +102,6 @@ static int event_loop(int fd) {
 
         nanosleep(&sleep_time, NULL);
     }
-
-    return 0;
 }
 
 int main(void) {
@@ -118,15 +109,19 @@ int main(void) {
         fprintf(stderr, "Unable to prime Majestic configuration.\n");
     }
 
-    const int matek_fd = open_matek_device();
+    // Stay alive even if the Matek link is missing or drops later by retrying forever.
+    while (1) {
+        const int matek_fd = open_matek_device();
 
-    if (matek_fd < 0) {
-        return EXIT_FAILURE;
+        if (matek_fd < 0) {
+            fprintf(stderr, "Matek device unavailable; retrying...\n");
+            nanosleep(&RECONNECT_DELAY, NULL);
+            continue;
+        }
+
+        event_loop(matek_fd);
+        fprintf(stderr, "Matek loop exited; reconnecting...\n");
+        close(matek_fd);
+        nanosleep(&RECONNECT_DELAY, NULL);
     }
-
-    const int loop_status = event_loop(matek_fd);
-
-    close(matek_fd);
-
-    return loop_status == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
