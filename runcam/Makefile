@@ -1,4 +1,3 @@
-CC ?= gcc
 CFLAGS ?= -O2 -Wall -Wextra -pedantic
 LDFLAGS ?=
 
@@ -10,7 +9,7 @@ TARGETS = majestic_manager
 
 all: $(TARGETS)
 
-majestic_manager: majestic_manager.c mavlink.c
+majestic_manager: majestic_manager.c matek_mavlink.c
 	ZIG_GLOBAL_CACHE_DIR=$(ZIG_CACHE) ZIG_LOCAL_CACHE_DIR=$(ZIG_CACHE) $(ZIG) cc $(MAJESTIC_CFLAGS) $^ -o $@
 
 clean:
