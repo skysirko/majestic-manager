@@ -148,14 +148,12 @@ bool majestic_config_init(void) {
         }
         char *row = line + indent;
 
+        char *colon = strchr(row, ':');
+        *colon = '\0'; // end of string
+
         if (indent == 0) {
-            char *colon = strchr(row, ':');
-            if (!colon) {
-                fprintf(stderr, "Invalid section, no colon found: %s\n", line);
-                goto error;
-            }
-            *colon = '\0'; // end of string
-            current_section = create_section(&g_majestic_config, row);
+            const char *section_name = row;
+            current_section = create_section(&g_majestic_config, section_name);
             if (!current_section) {
                 fprintf(stderr, "Failed to create section.");
                 goto error;
@@ -165,17 +163,12 @@ bool majestic_config_init(void) {
                 fprintf(stderr, "Field defined before any section: %s\n", line);
                 goto error;
             }
-            char *colon = strchr(row, ':');
-            if (!colon) {
-                fprintf(stderr, "Invalid field line, no colon found: %s\n", line);
-                goto error;
-            }
-            *colon = '\0'; // end of string
+            char *field = row;
             char *value = colon + 1;
             while (*value == ' ') {
                 value++;
             }
-            if (!add_entry(current_section, row, value)) {
+            if (!add_entry(current_section, field, value)) {
                 goto error;
             }
         } else {
