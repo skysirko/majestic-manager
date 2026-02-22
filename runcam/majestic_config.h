@@ -2,18 +2,17 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <sys/types.h>
 
 #define MAJESTIC_CONFIG_FILE "runcam/majestic.yaml"
 
-struct majectic_section_entry {
+struct majestic_section_entry {
     char *field;
     char *value;
 };
 
 struct majestic_section {
     char *section;
-    struct majectic_section_entry *entries;
+    struct majestic_section_entry *entries;
     size_t entry_count;
     size_t entry_capacity;
 };

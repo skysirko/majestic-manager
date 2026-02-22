@@ -32,7 +32,7 @@ static bool ensure_entry_capacity(struct majestic_section *section) {
 
     // 8 -> 16 -> 31 -> ...
     size_t new_capacity = section->entry_capacity ? section->entry_capacity * 2 : 8;
-    struct majectic_section_entry *tmp = realloc(section->entries, new_capacity * sizeof(struct majectic_section_entry));
+    struct majestic_section_entry *tmp = realloc(section->entries, new_capacity * sizeof(struct majestic_section_entry));
     if (!tmp) {
         perror("realloc");
         return false;
@@ -65,7 +65,7 @@ static bool add_entry(struct majestic_section *section, const char *field, const
         fprintf(stderr, "Failed to ensure entry capacity.");
         return false;
     }
-    struct majectic_section_entry *entry = &section->entries[section->entry_count];
+    struct majestic_section_entry *entry = &section->entries[section->entry_count];
     entry->field = strdup(field);
     if (!entry->field) {
         fprintf(stderr, "Failed to copy entry field.");
@@ -98,7 +98,7 @@ static bool write_config_file(void) {
             return false;
         }
         for (size_t j = 0; j < section->entry_count; j++) {
-            struct majectic_section_entry *entry = &section->entries[j];
+            struct majestic_section_entry *entry = &section->entries[j];
             if (fprintf(fp, "  %s: %s\n", entry->field, entry->value ? entry->value : "") < 0) {
                 perror("fprintf");
                 fclose(fp);
@@ -213,7 +213,7 @@ bool majestic_config_set_crop(const char *crop) {
     }
 
     // searching crop entry
-    struct majectic_section_entry *crop_entry = NULL;
+    struct majestic_section_entry *crop_entry = NULL;
     for (size_t i = 0; i < video1->entry_count; i++) {
         if (strcmp(video1->entries[i].field, "crop") == 0) {
             crop_entry = &video1->entries[i];
