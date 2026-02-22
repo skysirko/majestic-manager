@@ -7,13 +7,6 @@
 
 struct majestic_config g_majestic_config = {0};
 
-static void trim_trailing_spaces(char *str) {
-    size_t len = strlen(str);
-    while (len > 0 && str[len - 1] == ' ') {
-        str[--len] = '\0';
-    }
-}
-
 static bool ensure_section_capacity(struct majestic_config *config) {
     if (config->section_count < config->section_capacity) {
         return true;
@@ -52,12 +45,14 @@ static bool ensure_entry_capacity(struct majestic_section *section) {
 
 static struct majestic_section *create_section(struct majestic_config *config, const char *name) {
     if (!ensure_section_capacity(config)) {
+        fprintf(stderr, "Failed to ensure section capacity.");
         return NULL;
     }
     struct majestic_section *section = &config->sections[config->section_count];
     memset(section, 0, sizeof(*section));
     section->section = strdup(name);
     if (!section->section) {
+        fprintf(stderr, "Failed to copy section name.");
         perror("strdup");
         return NULL;
     }
@@ -67,16 +62,19 @@ static struct majestic_section *create_section(struct majestic_config *config, c
 
 static bool add_entry(struct majestic_section *section, const char *field, const char *value) {
     if (!ensure_entry_capacity(section)) {
+        fprintf(stderr, "Failed to ensure entry capacity.");
         return false;
     }
     struct majectic_section_entry *entry = &section->entries[section->entry_count];
     entry->field = strdup(field);
     if (!entry->field) {
+        fprintf(stderr, "Failed to copy entry field.");
         perror("strdup");
         return false;
     }
     entry->value = strdup(value);
     if (!entry->value) {
+        fprintf(stderr, "Failed to copy entry value.");
         perror("strdup");
         free(entry->field);
         entry->field = NULL;
@@ -148,20 +146,52 @@ bool majestic_config_init(void) {
         while (indent < (size_t)line_len && line[indent] == ' ') {
             indent++;
         }
-        char *content = line + indent;
-        if (*content == '\0') {
-            fprintf(stderr, "lines with spaces only not allowed\n");
+        char *row = line + indent;
+
+        if (indent == 0) {
+            char *colon = strchr(row, ':');
+            if (!colon) {
+                fprintf(stderr, "Invalid section, no colon found: %s\n", line);
+                goto error;
+            }
+            *colon = '\0'; // end of string
+            current_section = create_section(&g_majestic_config, row);
+            if (!current_section) {
+                fprintf(stderr, "Failed to create section.");
+                goto error;
+            }
+        } else if (indent == 2) {
+            if (!current_section) {
+                fprintf(stderr, "Field defined before any section: %s\n", line);
+                goto error;
+            }
+            char *colon = strchr(row, ':');
+            if (!colon) {
+                fprintf(stderr, "Invalid field line, no colon found: %s\n", line);
+                goto error;
+            }
+            *colon = '\0'; // end of string
+            char *value = colon + 1;
+            while (*value == ' ') {
+                value++;
+            }
+            if (!add_entry(current_section, row, value)) {
+                goto error;
+            }
+        } else {
+            fprintf(stderr, "Unsupported indent: %s\n", line);
             goto error;
-        }
-
-        } else { // field inside section
-
         }
     }
 
     free(line);
     fclose(fp);
     return true;
+
+error:
+    free(line);
+    fclose(fp);
+    return false;
 }
 
 bool majestic_config_set_crop(const char *crop) {

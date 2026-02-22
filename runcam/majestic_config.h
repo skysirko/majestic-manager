@@ -6,17 +6,25 @@
 
 #define MAJESTIC_CONFIG_FILE "runcam/majestic.yaml"
 
-struct majestic_config_entry {
-    char *section;
+struct majectic_section_entry {
     char *field;
     char *value;
 };
 
-struct majestic_config_data {
-    struct majestic_config_entry *rows;
+struct majestic_section {
+    char *section;
+    struct majectic_section_entry *entries;
+    size_t entry_count;
+    size_t entry_capacity;
 };
 
-extern struct majestic_config_data g_majestic_config;
+struct majestic_config {
+    struct majestic_section *sections;
+    size_t section_count;
+    size_t section_capacity;
+};
+
+extern struct majestic_config g_majestic_config;
 
 bool majestic_config_init(void);
 bool majestic_config_set_crop(const char *crop);
