@@ -3,6 +3,52 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+struct majestic_config g_majestic_config = {0};
+
+static void trim_trailing_spaces(char *str) {
+    size_t len = strlen(str);
+    while (len > 0 && str[len - 1] == ' ') {
+        str[--len] = '\0';
+    }
+}
+
+static bool ensure_section_capacity(struct majestic_config *config) {
+    if (config->section_count < config->section_capacity) {
+        return true;
+    }
+
+    // 8 -> 16 -> 31 -> ...
+    size_t new_capacity = config->section_capacity ? config->section_capacity * 2 : 8;
+    struct majestic_section *tmp = realloc(config->sections, new_capacity * sizeof(struct majestic_section));
+    if (!tmp) {
+        perror("realloc");
+        return false;
+    }
+
+    config->sections = tmp;
+    config->section_capacity = new_capacity;
+    return true;
+}
+
+static bool ensure_entry_capacity(struct majestic_section *section) {
+    if (section->entry_count < section->entry_capacity) {
+        return true;
+    }
+
+    // 8 -> 16 -> 31 -> ...
+    size_t new_capacity = section->entry_capacity ? section->entry_capacity * 2 : 8;
+    struct majectic_section_entry *tmp = realloc(section->entries, new_capacity * sizeof(struct majectic_section_entry));
+    if (!tmp) {
+        perror("realloc");
+        return false;
+    }
+
+    section->entries = tmp;
+    section->entry_capacity = new_capacity;
+    return true;
+}
 
 static struct majestic_section *create_section(struct majestic_config *config, const char *name) {
     if (!ensure_section_capacity(config)) {
