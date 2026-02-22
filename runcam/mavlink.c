@@ -1,11 +1,66 @@
 #include "mavlink.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <termios.h>
+#include <time.h>
 #include <unistd.h>
+
+enum {
+    MAVLINK_MSG_ID_HEARTBEAT = 0,
+    MAVLINK_MSG_ID_STATUSTEXT = 253,
+};
+
+enum {
+    MAVLINK_CRC_EXTRA_HEARTBEAT = 50,
+    MAVLINK_CRC_EXTRA_STATUSTEXT = 83,
+};
+
+struct mavlink_message {
+    uint32_t msgid;
+    uint8_t sysid;
+    uint8_t compid;
+    uint8_t payload_len;
+    uint8_t payload[255];
+};
+
+struct mavlink_parser {
+    enum {
+        STATE_WAIT_STX,
+        STATE_HEADER,
+        STATE_PAYLOAD,
+        STATE_CRC1,
+        STATE_CRC2,
+        STATE_SIGNATURE
+    } state;
+    uint8_t header[10];
+    size_t header_len_expected;
+    size_t header_pos;
+    uint8_t payload[255];
+    uint8_t payload_len;
+    uint8_t payload_pos;
+    uint8_t incompat_flags;
+    bool signed_frame;
+    uint8_t signature_pos;
+    uint16_t crc_received;
+};
+
+static int g_mavlink_fd = -1;
+static uint8_t g_seq = 0;
+static struct mavlink_parser g_parser;
+
+static void mavlink_parser_reset(struct mavlink_parser *parser);
+static bool mavlink_parser_feed(struct mavlink_parser *parser, uint8_t byte, struct mavlink_message *msg);
+static uint16_t mavlink_crc_accumulate_buffer(const uint8_t *buf, size_t len, uint16_t crc);
+static int mavlink_read_message_by_id(uint32_t target_msgid,
+                                      int timeout_ms,
+                                      struct mavlink_message *out_msg);
+static double monotonic_seconds(void);
 
 /* write wrapper that retries on EINTR so callers don't need to care */
 static bool write_all(int fd, const void *data, size_t len) {
@@ -38,7 +93,87 @@ static bool lookup_crc_extra(uint32_t msgid, uint8_t *extra) {
     }
 }
 
-void mavlink_parser_reset(struct mavlink_parser *parser) {
+static bool configure_serial(int fd, speed_t speed) {
+    struct termios tty;
+    if (tcgetattr(fd, &tty) != 0) {
+        perror("tcgetattr");
+        return false;
+    }
+    cfmakeraw(&tty);
+    cfsetispeed(&tty, speed);
+    cfsetospeed(&tty, speed);
+    tty.c_cflag |= CLOCAL | CREAD;
+    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 0;
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        perror("tcsetattr");
+        return false;
+    }
+    int flags = fcntl(fd, F_GETFL);
+    if (flags < 0) {
+        perror("fcntl");
+        return false;
+    }
+    flags |= O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, flags) < 0) {
+        perror("fcntl");
+        return false;
+    }
+    return true;
+}
+
+bool mavlink_init(void) {
+    mavlink_close();
+
+    int fd = open(MATEK_DEVICE, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) {
+        perror("open");
+        return false;
+    }
+    if (!configure_serial(fd, SERIAL_SPEED)) {
+        close(fd);
+        return false;
+    }
+    g_mavlink_fd = fd;
+    g_seq = 0;
+    mavlink_parser_reset(&g_parser);
+
+    printf("waiting for heartbeat from autopilot...\n");
+    double last_heartbeat = 0.0;
+    while (true) {
+        double now = monotonic_seconds();
+        if (now - last_heartbeat >= 1.0) {
+            if (!mavlink_send_heartbeat()) {
+                goto fail;
+            }
+            last_heartbeat = now;
+        }
+        int status = mavlink_wait_heartbeat(200);
+        if (status < 0) {
+            goto fail;
+        }
+        if (status > 0) {
+            break;
+        }
+    }
+    printf("!!! heartbeat received !!!\n");
+    return true;
+
+fail:
+    mavlink_close();
+    return false;
+}
+
+void mavlink_close(void) {
+    if (g_mavlink_fd >= 0) {
+        close(g_mavlink_fd);
+        g_mavlink_fd = -1;
+    }
+    g_seq = 0;
+    mavlink_parser_reset(&g_parser);
+}
+
+static void mavlink_parser_reset(struct mavlink_parser *parser) {
     parser->state = STATE_WAIT_STX;
     parser->header_pos = 0;
     parser->payload_pos = 0;
@@ -54,7 +189,7 @@ void mavlink_parser_reset(struct mavlink_parser *parser) {
  * CRC -> optional signature), so call sites can treat the serial port as a raw
  * byte stream.
  */
-bool mavlink_parser_feed(struct mavlink_parser *parser, uint8_t byte, struct mavlink_message *msg) {
+static bool mavlink_parser_feed(struct mavlink_parser *parser, uint8_t byte, struct mavlink_message *msg) {
     switch (parser->state) {
         case STATE_WAIT_STX:
             if (byte == MAVLINK_V2_STX) {
@@ -144,7 +279,7 @@ finalize: {
  * the rest of the MAVLink ecosystem. CRC stands for Cyclic Redundancy Check,
  * the standard “parity on steroids” technique for spotting corrupted data.
  */
-uint16_t mavlink_crc_accumulate_buffer(const uint8_t *buf, size_t len, uint16_t crc) {
+static uint16_t mavlink_crc_accumulate_buffer(const uint8_t *buf, size_t len, uint16_t crc) {
     for (size_t i = 0; i < len; ++i) {
         uint8_t tmp = buf[i] ^ (uint8_t)(crc & 0xFF);
         tmp ^= (tmp << 4);
@@ -154,7 +289,10 @@ uint16_t mavlink_crc_accumulate_buffer(const uint8_t *buf, size_t len, uint16_t 
 }
 
 /* Serialize and send a heartbeat frame for the provided system/component IDs. */
-bool mavlink_send_heartbeat(int fd, uint8_t seq, uint8_t system_id, uint8_t component_id) {
+bool mavlink_send_heartbeat(void) {
+    if (g_mavlink_fd < 0) {
+        return false;
+    }
     uint8_t payload[9];
     uint32_t custom_mode = 0;
     memcpy(payload, &custom_mode, sizeof(custom_mode));
@@ -173,9 +311,9 @@ bool mavlink_send_heartbeat(int fd, uint8_t seq, uint8_t system_id, uint8_t comp
     frame[offset++] = sizeof(payload);
     frame[offset++] = 0;  /* incompat */
     frame[offset++] = 0;  /* compat */
-    frame[offset++] = seq;
-    frame[offset++] = system_id;
-    frame[offset++] = component_id;
+    frame[offset++] = g_seq++;
+    frame[offset++] = MAVLINK_SYSTEM_ID;
+    frame[offset++] = MAVLINK_COMPONENT_ID;
     frame[offset++] = 0;
     frame[offset++] = 0;
     frame[offset++] = 0;
@@ -190,26 +328,27 @@ bool mavlink_send_heartbeat(int fd, uint8_t seq, uint8_t system_id, uint8_t comp
     frame[offset++] = (uint8_t)(crc & 0xFF);
     frame[offset++] = (uint8_t)(crc >> 8);
 
-    return write_all(fd, frame, offset);
+    return write_all(g_mavlink_fd, frame, offset);
 }
 
-int mavlink_read_message_by_id(int fd,
-                               struct mavlink_parser *parser,
-                               uint32_t target_msgid,
-                               int timeout_ms,
-                               struct mavlink_message *out_msg) {
-    struct pollfd pfd = {.fd = fd, .events = POLLIN};
+static int mavlink_read_message_by_id(uint32_t target_msgid,
+                                      int timeout_ms,
+                                      struct mavlink_message *out_msg) {
+    if (g_mavlink_fd < 0) {
+        return -1;
+    }
+    struct pollfd pfd = {.fd = g_mavlink_fd, .events = POLLIN};
     int events = poll(&pfd, 1, timeout_ms);
     if (events <= 0 || !(pfd.revents & POLLIN)) {
         return 0;
     }
 
     uint8_t buffer[256];
-    ssize_t read_len = read(fd, buffer, sizeof(buffer));
+    ssize_t read_len = read(g_mavlink_fd, buffer, sizeof(buffer));
     if (read_len > 0) {
         for (ssize_t i = 0; i < read_len; ++i) {
             struct mavlink_message msg;
-            if (mavlink_parser_feed(parser, buffer[i], &msg) && msg.msgid == target_msgid) {
+            if (mavlink_parser_feed(&g_parser, buffer[i], &msg) && msg.msgid == target_msgid) {
                 if (out_msg) {
                     *out_msg = msg;
                 }
@@ -223,4 +362,55 @@ int mavlink_read_message_by_id(int fd,
     }
     perror("read");
     return -1;
+}
+
+int mavlink_wait_heartbeat(int timeout_ms) {
+    int status = mavlink_read_message_by_id(MAVLINK_MSG_ID_HEARTBEAT, timeout_ms, NULL);
+    if (status > 0) {
+        mavlink_parser_reset(&g_parser);
+    }
+    return status;
+}
+
+int mavlink_read_statustext(int timeout_ms, struct mavlink_statustext *out_msg) {
+    struct mavlink_message msg;
+    int status = mavlink_read_message_by_id(MAVLINK_MSG_ID_STATUSTEXT, timeout_ms, &msg);
+    if (status <= 0) {
+        return status;
+    }
+    if (msg.payload_len < 1) {
+        return 0;
+    }
+
+    if (out_msg) {
+        size_t text_len = 0;
+        out_msg->severity = msg.payload[0];
+        out_msg->text_id = 0;
+        out_msg->chunk_seq = 0;
+        if (msg.payload_len >= 54) {
+            text_len = MAVLINK_STATUSTEXT_MAX_LEN;
+            out_msg->text_id = (uint16_t)msg.payload[51] | ((uint16_t)msg.payload[52] << 8);
+            out_msg->chunk_seq = msg.payload[53];
+        } else {
+            if (msg.payload_len > 1) {
+                text_len = msg.payload_len - 1;
+            }
+            if (text_len > MAVLINK_STATUSTEXT_MAX_LEN) {
+                text_len = MAVLINK_STATUSTEXT_MAX_LEN;
+            }
+        }
+        memcpy(out_msg->text, &msg.payload[1], text_len);
+        out_msg->text[text_len] = '\0';
+        char *newline = strchr(out_msg->text, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+    }
+    return 1;
+}
+
+static double monotonic_seconds(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
