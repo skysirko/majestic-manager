@@ -113,7 +113,28 @@ static bool write_config_file(void) {
     return true;
 }
 
+void majestic_config_free(void) {
+    for (size_t i = 0; i < g_majestic_config.section_count; i++) {
+        struct majestic_section *section = &g_majestic_config.sections[i];
+        free(section->section);
+        section->section = NULL;
+        for (size_t j = 0; j < section->entry_count; j++) {
+            free(section->entries[j].field);
+            free(section->entries[j].value);
+        }
+        free(section->entries);
+        section->entries = NULL;
+        section->entry_count = 0;
+        section->entry_capacity = 0;
+    }
+    free(g_majestic_config.sections);
+    g_majestic_config.sections = NULL;
+    g_majestic_config.section_count = 0;
+    g_majestic_config.section_capacity = 0;
+}
+
 bool majestic_config_init(void) {
+    majestic_config_free();
     FILE *fp = fopen(MAJESTIC_CONFIG_FILE, "r");
     if (!fp) {
         perror("fopen");
@@ -184,6 +205,7 @@ bool majestic_config_init(void) {
 error:
     free(line);
     fclose(fp);
+    majestic_config_free();
     return false;
 }
 
