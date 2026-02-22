@@ -19,10 +19,11 @@ static const char *const CROPS[] = {
 
 static const char *const DEFAULT_MAJESTIC_CONFIG = "/etc/majestic.yaml";
 static size_t current_crop_index = 0;
-static const size_t CROP_COUNT = sizeof(CROPS) / sizeof(CROPS[0]);
+static const size_t CROP_INDEX_MIN = 0;
+static const size_t CROP_INDEX_MAX = sizeof(CROPS) / sizeof(CROPS[0]) - 1;
 
 static int apply_crop_index(size_t new_index) {
-    if (new_index >= CROP_COUNT) {
+    if (new_index > CROP_INDEX_MAX) {
         return -1;
     }
 
@@ -40,30 +41,19 @@ static int apply_crop_index(size_t new_index) {
     return 0;
 }
 
-static void handle_zoom_command(const char *command) {
-    if (strcmp(command, "zoom_in") == 0) {
-        if (current_crop_index + 1 < CROP_COUNT) {
+static void handle_statustext(const char *text) {
+    if (strcmp(text, "zoom_in") == 0) {
+        if (current_crop_index < CROP_INDEX_MAX) {
             (void)apply_crop_index(current_crop_index + 1);
         }
         return;
     }
 
-    if (strcmp(command, "zoom_out") == 0) {
-        if (current_crop_index > 0) {
+    if (strcmp(text, "zoom_out") == 0) {
+        if (current_crop_index > CROP_INDEX_MIN) {
             (void)apply_crop_index(current_crop_index - 1);
         }
     }
-}
-
-static void handle_statustext(const matek_statustext_t *message) {
-    fprintf(stderr, "STATUSTEXT (severity=%u id=%u chunk=%u): %s\n",
-        message->severity,
-        message->id,
-        message->chunk_seq,
-        message->text
-    );
-
-    handle_zoom_command(message->text);
 }
 
 static uint64_t monotonic_now_ms(void) {
@@ -91,15 +81,16 @@ static int event_loop(int fd) {
             next_emit_ms = now_ms + interval_ms;
         }
 
-        matek_statustext_t status_message;
-        const int statustext_result = receive_statustext(fd, &status_message);
+        matek_statustext_t msg;
+        const int statustext_result = receive_statustext(fd, &msg);
 
         if (statustext_result < 0) {
             return -1;
         }
 
         if (statustext_result > 0) {
-            handle_statustext(&status_message);
+            fprintf(stderr, "STATUSTEXT (severity=%u id=%u chunk=%u): %s\n", msg.severity, msg.id, msg.chunk_seq, msg.text);
+            handle_statustext(msg.text);
         }
 
         const struct timespec sleep_time = {
