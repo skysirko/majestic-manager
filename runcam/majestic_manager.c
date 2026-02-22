@@ -1,11 +1,12 @@
 #define _GNU_SOURCE
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "matek_mavlink.h"
+#include "majestic_config.h"
 
 static const char *const CROPS[] = {
     "0x0x1920x1080",
@@ -15,13 +16,47 @@ static const char *const CROPS[] = {
 };
 
 static const char *const DEFAULT_MAJESTIC_CONFIG = "/etc/majestic.yaml";
+static size_t current_crop_index = 0;
+static const size_t CROP_COUNT = sizeof(CROPS) / sizeof(CROPS[0]);
+
+static int apply_crop_index(size_t new_index) {
+    if (new_index >= CROP_COUNT) {
+        return -1;
+    }
+
+    if (majestic_config_set_crop(DEFAULT_MAJESTIC_CONFIG, CROPS[new_index]) != 0) {
+        fprintf(stderr, "Failed to update Majestic crop to %s\n", CROPS[new_index]);
+        return -1;
+    }
+
+    current_crop_index = new_index;
+    return 0;
+}
+
+static void handle_zoom_command(const char *command) {
+    if (strcmp(command, "zoom_in") == 0) {
+        if (current_crop_index + 1 < CROP_COUNT) {
+            (void)apply_crop_index(current_crop_index + 1);
+        }
+        return;
+    }
+
+    if (strcmp(command, "zoom_out") == 0) {
+        if (current_crop_index > 0) {
+            (void)apply_crop_index(current_crop_index - 1);
+        }
+    }
+}
 
 static void handle_statustext(const matek_statustext_t *message) {
     fprintf(stderr, "STATUSTEXT (severity=%u id=%u chunk=%u): %s\n",
-            message->severity,
-            message->id,
-            message->chunk_seq,
-            message->text);
+        message->severity,
+        message->id,
+        message->chunk_seq,
+        message->text
+    );
+
+    handle_zoom_command(message->text);
 }
 
 static uint64_t monotonic_now_ms(void) {
@@ -72,8 +107,9 @@ static int event_loop(int fd) {
 }
 
 int main(void) {
-    (void)CROPS;
-    (void)DEFAULT_MAJESTIC_CONFIG;
+    if (apply_crop_index(0) != 0) {
+        fprintf(stderr, "Unable to prime Majestic configuration.\n");
+    }
 
     const int matek_fd = open_matek_device();
 
