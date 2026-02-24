@@ -8,53 +8,68 @@ image:
   luminance: 50
 fpv:
   enabled: true
-  noiseLevel: 0
+  noiseLevel: 1
   refPred: true
-  refEnhance: 9
+  refEnhance: 2
   intraQp: false
 system:
   webPort: 80
   httpsPort: 443
   logLevel: debug
+  buffer: 1024
+  plugins: false
+  unsafe: false
 isp:
   antiFlicker: disabled
   sensorConfig: /etc/sensors/imx415.bin
-  exposure: 5
+  exposure: 8
   iqServer: false
   wdr: 80
+  lowDelay: false
+  slowShutter: false
+  nr: 3
+  sharpen: 0
 video0:
   enabled: true
   input: sensor
   codec: h265
   fps: 30
-  bitrate: 14500
-  rcMode: cbr
+  bitrate: 11500
+  rcMode: vbr
   gopSize: 1
+  gopMode: normal
   size: 3840x2160
   profile: high
   sliceUnits: 0
   qpDelta: 0
+  minQp: 12
+  maxQp: 42
 video1:
   crop: 0x0x1920x1080
   enabled: true
   input: sensor
   codec: h265
-  fps: 20
-  bitrate: 670
-  rcMode: cbr
-  gopSize: 1
+  fps: 30
+  bitrate: 650
+  rcMode: vbr
+  gopSize: 0.5
+  gopMode: normal
   size: 1920x1080
   profile: high
   sliceUnits: 0
   qpDelta: 0
+  minQp: 32
+  maxQp: 48
 jpeg:
-  enabled: false
-  qfactor: 50
+  enabled: true
+  qfactor: 100
   fps: 5
+  rtsp: false
+  size: 3840x2160
 osd:
   enabled: false
   font: /usr/share/fonts/truetype/UbuntuMono-Regular.ttf
-  template: '%d.%m.%Y %H:%M:%S'
+  template: "REC"
   posX: 16
   posY: 16
 audio:
@@ -62,24 +77,32 @@ audio:
   volume: 30
   srate: 8000
   codec: opus
+  channel: 1
   outputEnabled: false
   outputVolume: 30
+  speakerPinInvert: false
 rtsp:
   enabled: true
   port: 554
 nightMode:
-  colorToGray: false
+  colorToGray: true
   irCutSingleInvert: false
-  lightMonitor: false
+  lightMonitor: true
   lightSensorInvert: false
+  overrideDrc: 255
 motionDetect:
   enabled: false
   visualize: false
   debug: false
+  #roi: 1854x1304x216x606,1586x1540x482x622
+  #skipIn: 960x540x1920x1080
+  sensitivity: 60
+  threshold: 70
+  debounce: 8
 records:
   enabled: true
   path: /mnt/mmcblk0p1/%F
-  split: 1
+  split: 10
   maxUsage: 95
   notime: true
   substream: false
