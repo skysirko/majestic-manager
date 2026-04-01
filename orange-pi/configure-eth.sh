@@ -6,7 +6,7 @@ echo " Configuring eth0 with static IP"
 echo "==============================================================="
 
 ETH_IF="eth0"
-ETH_IP="192.168.1.150/24"
+ETH_IP="192.168.1.254/24"
 
 # -------------------------------------------------------------------
 # Disable Netplan completely (prevents overriding systemd-networkd)
