@@ -2,25 +2,11 @@
 set -euo pipefail
 
 echo "==============================================================="
-echo " Configuring network using systemd-networkd"
+echo " Configuring eth0 with static IP"
 echo "==============================================================="
 
-CAM_IF="eth0"
-CAM_IP="192.168.200.11/24"
-
-USB_PI_IP="192.168.201.1/24"
-
-echo "==> Detecting USB Ethernet interface..."
-USB_IF="$(ip -o link show | awk -F': ' '/^.*: enx/{print $2; exit}')"
-
-if [[ -z "${USB_IF}" ]]; then
-  echo "ERROR: USB-Ethernet adapter not detected."
-  echo "Plug it in and re-run:"
-  echo "  sudo ./configure_network_systemd.sh"
-  exit 1
-fi
-
-echo "==> USB interface detected: ${USB_IF}"
+ETH_IF="eth0"
+ETH_IP="192.168.1.150/24"
 
 # -------------------------------------------------------------------
 # Disable Netplan completely (prevents overriding systemd-networkd)
@@ -45,34 +31,18 @@ systemctl enable systemd-networkd.service
 systemctl enable systemd-resolved.service
 
 # -------------------------------------------------------------------
-# Create systemd-networkd config for eth0 (camera network)
+# Configure eth0
 # -------------------------------------------------------------------
-echo "==> Creating config for camera interface (${CAM_IF})..."
+echo "==> Creating systemd-networkd config for ${ETH_IF}..."
 
-tee /etc/systemd/network/10-${CAM_IF}.network >/dev/null <<EOF
+tee /etc/systemd/network/10-${ETH_IF}.network >/dev/null <<EOF
 [Match]
-Name=${CAM_IF}
+Name=${ETH_IF}
 
 [Network]
-Address=${CAM_IP}
+Address=${ETH_IP}
 EOF
 
-# -------------------------------------------------------------------
-# Create systemd-networkd config for USB Ethernet
-# -------------------------------------------------------------------
-echo "==> Creating config for USB interface (${USB_IF})..."
-
-tee /etc/systemd/network/5-${USB_IF}.network >/dev/null <<EOF
-[Match]
-Name=${USB_IF}
-
-[Network]
-Address=${USB_PI_IP}
-EOF
-
-# -------------------------------------------------------------------
-# Apply changes
-# -------------------------------------------------------------------
 echo "==> Reloading systemd-networkd..."
 systemctl restart systemd-networkd
 
@@ -80,12 +50,8 @@ echo ""
 echo "==============================================================="
 echo " DONE!"
 echo ""
-echo "Camera network:"
-echo "  Orange Pi: ${CAM_IP} on ${CAM_IF}"
-echo ""
-echo "Laptop network:"
-echo "  Orange Pi: ${USB_PI_IP} on ${USB_IF}"
-echo "  Set laptop manually to: 192.168.201.2/24"
+echo "eth0:"
+echo "  Orange Pi: ${ETH_IP}"
 echo ""
 echo "Reboot recommended: sudo reboot"
 echo "==============================================================="

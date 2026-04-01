@@ -32,7 +32,7 @@ The helper cache directories (`zig-cache/` and `zig-macos-aarch64-0.13.0/`) are 
 ### Deploying
 
 1. Copy the freshly built binary onto the camera, e.g. `scp runcam/majestic_manager root@openipc:/root/majestic_manager` and ensure it is executable via `chmod +x /root/majestic_manager`.
-2. Append the manager to the boot sequence by editing `/etc/rc.local` on the camera and adding a line such as `sleep 10 && /root/majestic_manager >>/root/majestic_manager.log 2>&1 &` so it starts a few seconds after boot and logs to `/root/majestic_manager.log`.
+2. Append the manager to the boot sequence by editing `/etc/rc.local` on the camera and adding a line such as `sleep 20 && /root/majestic_manager >>/root/majestic_manager.log 2>&1 &` so it starts a few seconds after boot and logs to `/root/majestic_manager.log`.
 3. 
 ```
 iface eth0 inet dhcp
