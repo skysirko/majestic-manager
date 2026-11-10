@@ -11,9 +11,12 @@ PYTHON_BIN="/home/pi/venvs/mav/bin/python3"
 MAVPROXY_BIN="/home/pi/venvs/mav/bin/mavproxy.py"
 
 MASTER="udp:192.168.1.254:14550"
-OUT_1="udp:192.168.1.149:14550"
-OUT_2="udp:192.168.1.140:14550"
-OUT_3="udp:192.168.1.100:14550"
+OUT_1="udp:192.168.1.253:14551"
+OUT_2="udp:192.168.1.253:14558"
+OUT_3="udp:192.168.1.100:14552"
+OUT_4="udp:192.168.1.100:14560"
+OUT_5="udp:192.168.1.149:14553"
+OUT_6="udp:192.168.1.149:14561"
 
 echo "Checking binaries..."
 if [[ ! -x "${PYTHON_BIN}" ]]; then
@@ -37,7 +40,7 @@ Wants=network-online.target
 Type=simple
 User=${USER_NAME}
 WorkingDirectory=${WORKDIR}
-ExecStart=${PYTHON_BIN} ${MAVPROXY_BIN} --daemon --non-interactive --master=${MASTER} --out=${OUT_1} --out=${OUT_2} --out=${OUT_3}
+ExecStart=${PYTHON_BIN} ${MAVPROXY_BIN} --daemon --non-interactive --master=${MASTER} --out=${OUT_1} --out=${OUT_2} --out=${OUT_3} --out=${OUT_4} --out=${OUT_5} --out=${OUT_6}
 Restart=always
 RestartSec=3
 
